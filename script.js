@@ -35,77 +35,33 @@ function setupEventListeners() {
     });
 }
 
-// Load products from Airtable
+// Load products from JSON file
 async function loadProducts() {
     try {
-        // Mock data for demo - replace with actual Airtable API call
-        const mockProducts = [
-            {
-                id: '1',
-                name: 'Smartphone Pro',
-                price: 699,
-                stock: 15,
-                image: 'https://via.placeholder.com/200x200?text=Smartphone',
-                description: 'Latest smartphone with advanced features'
-            },
-            {
-                id: '2',
-                name: 'Wireless Headphones',
-                price: 199,
-                stock: 8,
-                image: 'https://via.placeholder.com/200x200?text=Headphones',
-                description: 'Premium wireless headphones'
-            },
-            {
-                id: '3',
-                name: 'Smart Watch',
-                price: 299,
-                stock: 12,
-                image: 'https://via.placeholder.com/200x200?text=Watch',
-                description: 'Fitness tracking smart watch'
-            }
-        ];
-        
-        products = mockProducts;
-        displayProducts(products);
-        loading.style.display = 'none';
-        
-        // Uncomment below for actual Airtable integration
-        /*
-        const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}`, {
-            headers: {
-                'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}`
-            }
-        });
-        
-        const data = await response.json();
-        products = data.records.map(record => ({
-            id: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.PRODUCT_ID],
-            name: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.NAME],
-            price: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.SELLING_PRICE],
-            stock: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.CURRENT_STOCK],
-            category: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.CATEGORY],
-            image: 'https://via.placeholder.com/200x200',
-            description: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.NOTES] || ''
-        }));
-        
-        displayProducts(products);
-        loading.style.display = 'none';
-        */
+        const response = await fetch('products.json');
+        if (response.ok) {
+            products = await response.json();
+            displayProducts(products);
+            loading.style.display = 'none';
+        } else {
+            throw new Error('Products file not found');
+        }
     } catch (error) {
         console.error('Error loading products:', error);
-        loading.textContent = 'Error loading products';
+        loading.textContent = 'No products found. Run "npm run sync" to fetch from Airtable.';
     }
 }
+
 
 // Display products
 function displayProducts(products) {
     productsGrid.innerHTML = products.map(product => `
         <div class="product-card">
-            <img src="${product.image}" alt="${product.name}">
+            <img src="${product.image}" alt="${product.name}" 
+                 ${product.hoverImage ? `onmouseover="this.src='${product.hoverImage}'" onmouseout="this.src='${product.image}'"` : ''}>
             <h3>${product.name}</h3>
             <p>${product.description}</p>
-            <div class="price">$${product.price}</div>
+            <div class="price">₦${product.price.toLocaleString()}</div>
             <div class="stock">Stock: ${product.stock}</div>
             <button class="add-to-cart" onclick="addToCart('${product.id}')" 
                     ${product.stock === 0 ? 'disabled' : ''}>
@@ -144,12 +100,12 @@ function updateCartUI() {
                 ${item.quantity}
                 <button onclick="changeQuantity('${item.id}', 1)">+</button>
             </span>
-            <span>$${(item.price * item.quantity).toFixed(2)}</span>
+            <span>₦${(item.price * item.quantity).toLocaleString()}</span>
         </div>
     `).join('');
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    totalElement.textContent = total.toFixed(2);
+    totalElement.textContent = total.toLocaleString();
 }
 
 // Change quantity
@@ -181,6 +137,16 @@ function closeCart() {
     cartModal.style.display = 'none';
 }
 
+// Generate order ID
+function generateOrderId() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const time = String(date.getTime()).slice(-6);
+    return `ORD-${year}${month}${day}-${time}`;
+}
+
 // Checkout process
 async function checkout() {
     if (cart.length === 0) {
@@ -188,18 +154,29 @@ async function checkout() {
         return;
     }
     
+    // Get customer details
+    const customerName = prompt('Enter your name:');
+    const customerPhone = prompt('Enter your phone number:');
+    
+    if (!customerName || !customerPhone) {
+        alert('Customer details are required!');
+        return;
+    }
+    
     try {
-        // Send order to Make.com webhook for processing
+        // Send all items in single order
         const orderData = {
-            items: cart,
-            total: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-            timestamp: new Date().toISOString()
+            order_id: generateOrderId(),
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            items: cart.map(item => ({
+                product_id: item.id,
+                quantity: item.quantity,
+                notes: `${item.name} - Qty: ${item.quantity}`
+            }))
         };
         
-        // Replace with your Make.com webhook URL
-        const webhookUrl = 'YOUR_MAKE_COM_WEBHOOK_URL';
-        
-        await fetch(webhookUrl, {
+        const response = await fetch(CONFIG.MAKE_COM.ORDER_WEBHOOK, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -207,13 +184,20 @@ async function checkout() {
             body: JSON.stringify(orderData)
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // No JSON response expected from Make.com
+        // Just check if webhook call was successful
+        
         alert('Order placed successfully!');
         cart = [];
         updateCartUI();
         closeCart();
         
         // Refresh products to update stock
-        loadProducts();
+        setTimeout(() => loadProducts(), 2000);
         
     } catch (error) {
         console.error('Checkout error:', error);

@@ -1,0 +1,13 @@
+{
+  "name": "gadgets-store",
+  "version": "1.0.0",
+  "description": "E-commerce gadgets store with Airtable integration",
+  "main": "server.js",
+  "scripts": {
+    "sync": "node sync-products.js",
+    "serve": "node -e \"const http=require('http'),fs=require('fs'),path=require('path');http.createServer((req,res)=>{const file=req.url==='/'?'index.html':req.url.slice(1);const ext=path.extname(file);const contentType={'html':'text/html','js':'text/javascript','css':'text/css','json':'application/json'}[ext.slice(1)]||'text/plain';try{const content=fs.readFileSync(file);res.writeHead(200,{'Content-Type':contentType,'Access-Control-Allow-Origin':'*'});res.end(content)}catch{res.writeHead(404);res.end('Not found')}}).listen(3000,()=>console.log('Server running at http://localhost:3000'))\""
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}

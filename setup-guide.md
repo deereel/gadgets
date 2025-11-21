@@ -1,30 +1,38 @@
 # Setup Guide - Gadgets E-commerce Integration
 
-## Quick Setup Steps
+## Complete Workflow Integration
 
 ### 1. Airtable Setup
-1. Create a new Airtable base with two tables:
+Create a new Airtable base with three tables:
 
 **TABLE 1: Products**
-- Product ID (Autonumber)
-- Name (Single line text)
-- Category (Single select: Shoes, bags, raw materials, etc.)
-- Current Stock (Number)
+- Product Name (Single line text)
+- Category (Single select: Smartphones, Headphones, Watches, etc.)
 - Cost Price (Number, optional)
-- Selling Price (Number, optional)
+- Selling Price (Number)
 - Low Stock Threshold (Number)
-- Last Updated (Last modified time)
-- Notes (Long text, optional)
+- Current Stock (Number, default = 0)
+- Product ID (Formula: `UPPER(LEFT({Category}, 3)) & "-" & LEFT(RECORD_ID(), 6)`)
+- Description (Long text, optional)
 
 **TABLE 2: Stock Movements**
 - Product (Linked record → Products)
 - Movement Type (Single select: Stock In, Stock Out)
 - Quantity (Number)
-- Date (Created time)
 - Description (Long text)
+- Date (Created time, auto)
 
-2. Get your Base ID and API key from Airtable
-3. Update `config.js` with your credentials
+**TABLE 3: Orders** (Optional but recommended)
+- Order ID (Single line text)
+- Product (Linked record → Products)
+- Quantity (Number)
+- Total Price (Number)
+- Customer Name (Single line text)
+- Customer Phone (Single line text)
+- Notes (Long text)
+- Order Date (Created time)
+
+Get your Base ID and API key from Airtable and update `config.js`
 
 ### 2. Google Forms Setup
 1. Create one Google Form with fields:
@@ -43,11 +51,30 @@
 3. Update `config.js` with spreadsheet ID
 
 ### 4. Make.com Automation Setup
-1. Create scenarios for:
-   - Order processing (webhook → update Airtable stock)
-   - Stock synchronization (Google Sheets → Airtable)
-2. Get webhook URLs from Make.com
-3. Update `config.js` with webhook URLs
+Create three scenarios:
+
+**SCENARIO 1: Product Creation**
+- Trigger: Google Sheets → Watch New Rows (Products_Form tab)
+- Action: Airtable → Create Record in Products table
+- Maps: Product Name, Category, Cost Price, Selling Price, Low Stock Threshold, Description
+
+**SCENARIO 2: Stock Movement Processing**
+- Trigger: Google Sheets → Watch New Rows (Stock_Movements tab)
+- Search: Find product by Product ID
+- Router: Stock In/Out logic with negative stock prevention
+- Update: Product Current Stock
+- Log: Create Stock Movement record
+
+**SCENARIO 3: Order Processing (NEW)**
+- Trigger: Custom Webhook (for website orders)
+- Search: Find product by Product ID
+- Filter: Check stock availability
+- Update: Reduce Current Stock
+- Log: Create Stock Movement ("Stock Out")
+- Create: Order record
+- Response: Return success/failure to website
+
+Get webhook URLs and update `config.js`
 
 ### 5. Configuration
 Update all placeholder values in `config.js`:
