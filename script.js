@@ -18,10 +18,57 @@ const closeModal = document.querySelector('.close');
 const cartButton = document.querySelector('.cart');
 const loading = document.getElementById('loading');
 
+// Real-time stock updates
+async function updateStockDisplay() {
+    try {
+        const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}`, {
+            headers: { 'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}` }
+        });
+        
+        const data = await response.json();
+        
+        data.records.forEach(record => {
+            const productId = record.fields['Product ID'];
+            const newStock = record.fields['Current Stock'] || 0;
+            
+            // Update product in memory
+            const product = products.find(p => p.id === productId);
+            if (product && product.stock !== newStock) {
+                product.stock = newStock;
+                
+                // Update UI elements
+                const productCard = document.querySelector(`[data-product-id="${productId}"]`);
+                if (productCard) {
+                    const stockElement = productCard.querySelector('.stock');
+                    const buttonElement = productCard.querySelector('.add-to-cart');
+                    
+                    stockElement.textContent = `Stock: ${newStock}`;
+                    
+                    if (newStock === 0) {
+                        buttonElement.disabled = true;
+                        buttonElement.textContent = 'Out of Stock';
+                    } else {
+                        buttonElement.disabled = false;
+                        buttonElement.textContent = 'Add to Cart';
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Real-time stock update failed:', error);
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadProducts();
     setupEventListeners();
+    
+    // Start real-time updates after initial load
+    setTimeout(() => {
+        setInterval(updateStockDisplay, 30000); // Every 30 seconds
+        console.log('Real-time stock updates started');
+    }, 5000);
 });
 
 // Setup event listeners
@@ -56,7 +103,7 @@ async function loadProducts() {
 // Display products
 function displayProducts(products) {
     productsGrid.innerHTML = products.map(product => `
-        <div class="product-card">
+        <div class="product-card" data-product-id="${product.id}">
             <img src="${product.image}" alt="${product.name}" 
                  ${product.hoverImage ? `onmouseover="this.src='${product.hoverImage}'" onmouseout="this.src='${product.image}'"` : ''}>
             <h3>${product.name}</h3>
@@ -198,6 +245,14 @@ async function checkout() {
         
         // Refresh products to update stock
         setTimeout(() => loadProducts(), 2000);
+        
+        // Set up auto-refresh every 2 minutes
+        if (!window.autoRefreshInterval) {
+            window.autoRefreshInterval = setInterval(() => {
+                loadProducts();
+                console.log('Auto-refreshed products');
+            }, 120000);
+        }
         
     } catch (error) {
         console.error('Checkout error:', error);
