@@ -3,23 +3,37 @@
 ## Quick Setup Steps
 
 ### 1. Airtable Setup
-1. Create a new Airtable base
-2. Create a table named "Inventory" with fields:
-   - Name (Single line text)
-   - Price (Number)
-   - Stock (Number)
-   - Image (Attachment)
-   - Description (Long text)
-   - SKU (Single line text)
-3. Get your Base ID and API key from Airtable
-4. Update `config.js` with your credentials
+1. Create a new Airtable base with two tables:
+
+**TABLE 1: Products**
+- Product ID (Autonumber)
+- Name (Single line text)
+- Category (Single select: Shoes, bags, raw materials, etc.)
+- Current Stock (Number)
+- Cost Price (Number, optional)
+- Selling Price (Number, optional)
+- Low Stock Threshold (Number)
+- Last Updated (Last modified time)
+- Notes (Long text, optional)
+
+**TABLE 2: Stock Movements**
+- Product (Linked record → Products)
+- Movement Type (Single select: Stock In, Stock Out)
+- Quantity (Number)
+- Date (Created time)
+- Description (Long text)
+
+2. Get your Base ID and API key from Airtable
+3. Update `config.js` with your credentials
 
 ### 2. Google Forms Setup
-1. Create two Google Forms:
-   - **Stock In Form** with fields: Product Name, Quantity Added, Date, Notes
-   - **Stock Out Form** with fields: Product Name, Quantity Removed, Reason, Date
-2. Get form IDs from the URLs
-3. Update `config.js` and `admin.html` with form IDs
+1. Create one Google Form with fields:
+   - **Product Name** (Short answer)
+   - **Movement Type** (Dropdown: "Stock In", "Stock Out")
+   - **Quantity** (Number)
+   - **Notes / Description** (Long answer, optional)
+2. Get form ID from the URL
+3. Update `config.js` and `admin.html` with form ID
 
 ### 3. Google Sheets Setup
 1. Create a Google Sheet with tabs:

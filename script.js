@@ -72,20 +72,21 @@ async function loadProducts() {
         
         // Uncomment below for actual Airtable integration
         /*
-        const response = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_NAME}`, {
+        const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}`, {
             headers: {
-                'Authorization': `Bearer ${AIRTABLE_API_KEY}`
+                'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}`
             }
         });
         
         const data = await response.json();
         products = data.records.map(record => ({
-            id: record.id,
-            name: record.fields.Name,
-            price: record.fields.Price,
-            stock: record.fields.Stock,
-            image: record.fields.Image?.[0]?.url || 'https://via.placeholder.com/200x200',
-            description: record.fields.Description
+            id: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.PRODUCT_ID],
+            name: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.NAME],
+            price: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.SELLING_PRICE],
+            stock: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.CURRENT_STOCK],
+            category: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.CATEGORY],
+            image: 'https://via.placeholder.com/200x200',
+            description: record.fields[CONFIG.AIRTABLE.PRODUCT_FIELDS.NOTES] || ''
         }));
         
         displayProducts(products);
