@@ -56,7 +56,7 @@
         
         <div class="quick-actions">
             <a href="#" onclick="openProductForm()" class="action-btn">Add Product Form</a>
-            <a href="https://docs.google.com/forms/d/1E8GfVYXTA5bECAy8FLXHUa9QdnNXKKpMQ-4Nwo9R4wU/viewform" target="_blank" class="action-btn">Update Stock</a>
+            <a href="#" onclick="openStockForm()" class="action-btn">Update Stock</a>
             <a href="#" class="action-btn" onclick="refreshInventory()">Refresh Inventory</a>
             <a href="#" class="action-btn" onclick="viewOrders()">View Orders</a>
         </div>
@@ -94,6 +94,39 @@
                 <button onclick="clearDateFilter()">Clear</button>
             </div>
             <div id="orders-content" style="max-height: 400px; overflow-y: auto;">Loading orders...</div>
+        </div>
+    </div>
+
+    <!-- Stock Update Modal -->
+    <div id="stock-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px; margin: 5% auto; position: relative; top: 0;">
+            <span class="close" onclick="closeStockModal()">&times;</span>
+            <h2>Update Stock</h2>
+            <form id="stock-form">
+                <div style="margin-bottom: 1rem;">
+                    <label>Product:</label>
+                    <select id="product-select" required style="width: 100%; padding: 0.5rem;">
+                        <option value="">Loading products...</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label>Movement Type:</label>
+                    <select id="movement-type" required style="width: 100%; padding: 0.5rem;">
+                        <option value="">Select Type</option>
+                        <option value="Stock In">Stock In</option>
+                        <option value="Stock Out">Stock Out</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label>Quantity:</label>
+                    <input type="number" id="quantity" min="1" required style="width: 100%; padding: 0.5rem;">
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label>Notes:</label>
+                    <textarea id="notes" rows="3" style="width: 100%; padding: 0.5rem;"></textarea>
+                </div>
+                <button type="submit" class="action-btn" style="width: 100%;">Submit Stock Update</button>
+            </form>
         </div>
     </div>
 
@@ -220,6 +253,106 @@
         function closeOrdersModal() {
             document.getElementById('orders-modal').style.display = 'none';
         }
+        
+        let stockProducts = [];
+        
+        async function openStockForm() {
+            document.getElementById('stock-modal').style.display = 'block';
+            await loadStockProducts();
+        }
+        
+        async function loadStockProducts() {
+            try {
+                const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}`, {
+                    headers: { 'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}` }
+                });
+                
+                const data = await response.json();
+                stockProducts = data.records;
+                
+                // Check Stock Movements table structure
+                const movementsResponse = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.STOCK_MOVEMENTS_TABLE}?maxRecords=1`, {
+                    headers: { 'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}` }
+                });
+                const movementsData = await movementsResponse.json();
+                console.log('Stock Movements fields:', movementsData.records[0]?.fields || 'No records found');
+                
+                const select = document.getElementById('product-select');
+                select.innerHTML = '<option value="">Select Product</option>' + 
+                    stockProducts.map(record => 
+                        `<option value="${record.id}">${record.fields['Product Name']} (Current: ${record.fields['Current Stock'] || 0})</option>`
+                    ).join('');
+            } catch (error) {
+                document.getElementById('product-select').innerHTML = '<option value="">Error loading products</option>';
+            }
+        }
+        
+        function closeStockModal() {
+            document.getElementById('stock-modal').style.display = 'none';
+        }
+        
+        document.getElementById('stock-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const selectedProductId = document.getElementById('product-select').value;
+            const selectedProduct = stockProducts.find(p => p.id === selectedProductId);
+            const movementType = document.getElementById('movement-type').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const notes = document.getElementById('notes').value;
+            
+            try {
+                // Create stock movement record directly in Airtable
+                const movementResponse = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.STOCK_MOVEMENTS_TABLE}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fields: {
+                            'Product': [selectedProductId],
+                            'Movement type': movementType,
+                            'Quantity': quantity,
+                            'Description': notes || `${movementType} - ${quantity} units`
+                        }
+                    })
+                });
+                
+                if (!movementResponse.ok) {
+                    const errorData = await movementResponse.json();
+                    console.error('Movement creation error:', errorData);
+                    throw new Error(`Movement creation failed: ${errorData.error?.message || 'Unknown error'}`);
+                }
+                
+                if (movementResponse.ok) {
+                    // Update product stock
+                    const currentStock = selectedProduct.fields['Current Stock'] || 0;
+                    const newStock = movementType === 'Stock In' ? 
+                        currentStock + quantity : 
+                        Math.max(0, currentStock - quantity);
+                    
+                    await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}/${selectedProductId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            fields: {
+                                'Current Stock': newStock
+                            }
+                        })
+                    });
+                    
+                    alert('Stock updated successfully!');
+                    document.getElementById('stock-form').reset();
+                    closeStockModal();
+                }
+            } catch (error) {
+                console.error('Stock update error:', error);
+                alert(`Error updating stock: ${error.message}`);
+            }
+        });
 
         function exportData() {
             alert('Exporting data... Check your Google Sheets for the latest export.');
