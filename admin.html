@@ -55,9 +55,10 @@
         <h2>Store Management</h2>
         
         <div class="quick-actions">
+            <a href="#" onclick="openProductForm()" class="action-btn">Add Product Form</a>
+            <a href="https://docs.google.com/forms/d/1E8GfVYXTA5bECAy8FLXHUa9QdnNXKKpMQ-4Nwo9R4wU/viewform" target="_blank" class="action-btn">Update Stock</a>
             <a href="#" class="action-btn" onclick="refreshInventory()">Refresh Inventory</a>
             <a href="#" class="action-btn" onclick="viewOrders()">View Orders</a>
-            <a href="#" class="action-btn" onclick="syncStock()">Sync Stock</a>
         </div>
 
         <div class="integration-section">
@@ -67,19 +68,9 @@
             <button onclick="testAirtableConnection()">Test Connection</button>
         </div>
 
-        <div class="integration-section">
-            <h3>📝 Stock Management Form</h3>
-            <p>Use this form to update inventory (stock in/out)</p>
-            <iframe src="https://docs.google.com/forms/d/e/1E8GfVYXTA5bECAy8FLXHUa9QdnNXKKpMQ-4Nwo9R4wU/viewform?embedded=true" 
-                    class="form-embed"></iframe>
-        </div>
 
-        <div class="integration-section">
-            <h3>📈 Google Sheets Dashboard</h3>
-            <p>View stock movements and order history</p>
-            <a href="https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit" 
-               target="_blank" class="action-btn">Open Sheets Dashboard</a>
-        </div>
+
+
 
         <div class="integration-section">
             <h3>⚡ Make.com Automations</h3>
@@ -89,6 +80,20 @@
                 <div>Stock Sync: <span id="stock-automation">Active</span></div>
             </div>
             <button onclick="triggerStockSync()">Manual Stock Sync</button>
+        </div>
+    </div>
+
+    <!-- Orders Modal -->
+    <div id="orders-modal" class="modal">
+        <div class="modal-content" style="max-width: 90%; max-height: 80%; overflow-y: auto; margin: 5% auto;">
+            <span class="close" onclick="closeOrdersModal()">&times;</span>
+            <h2>Orders</h2>
+            <div style="margin-bottom: 1rem;">
+                <label>Filter by date:</label>
+                <input type="date" id="date-filter" onchange="filterOrders()">
+                <button onclick="clearDateFilter()">Clear</button>
+            </div>
+            <div id="orders-content" style="max-height: 400px; overflow-y: auto;">Loading orders...</div>
         </div>
     </div>
 
@@ -125,8 +130,95 @@
             window.location.reload();
         }
 
-        function viewOrders() {
-            window.open('https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=ORDERS_SHEET_ID', '_blank');
+        let allOrders = [];
+        
+        async function viewOrders() {
+            document.getElementById('orders-modal').style.display = 'block';
+            await loadOrders();
+        }
+        
+        async function loadOrders() {
+            try {
+                const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.ORDERS_TABLE}`, {
+                    headers: { 'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}` }
+                });
+                
+                const data = await response.json();
+                allOrders = data.records.map(record => ({
+                    id: record.fields['Order ID'] || 'N/A',
+                    product: record.fields['Product Name (from Product)']?.[0] || 'N/A',
+                    quantity: record.fields['Quantity'] || 0,
+                    total: record.fields['Total Price'] || 0,
+                    customer: record.fields['Customer name'] || 'N/A',
+                    phone: record.fields['Customer Phone'] || 'N/A',
+                    date: record.fields['Order Date'] || record.createdTime
+                }));
+                
+                console.log('First order fields:', data.records[0]?.fields);
+                
+                displayOrders(allOrders);
+            } catch (error) {
+                document.getElementById('orders-content').innerHTML = 'Error loading orders';
+            }
+        }
+        
+        function displayOrders(orders) {
+            const content = document.getElementById('orders-content');
+            if (orders.length === 0) {
+                content.innerHTML = 'No orders found';
+                return;
+            }
+            
+            content.innerHTML = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f0f0f0;">
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Order ID</th>
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Product</th>
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Qty</th>
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Total</th>
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Customer</th>
+                            <th style="padding: 0.5rem; border: 1px solid #ddd;">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(order => `
+                            <tr>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">${order.id}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">${order.product}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">${order.quantity}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">₦${order.total?.toLocaleString() || 'N/A'}</td>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">${order.customer}<br><small>${order.phone}</small></td>
+                                <td style="padding: 0.5rem; border: 1px solid #ddd;">${new Date(order.date).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        function filterOrders() {
+            const filterDate = document.getElementById('date-filter').value;
+            if (!filterDate) {
+                displayOrders(allOrders);
+                return;
+            }
+            
+            const filtered = allOrders.filter(order => {
+                const orderDate = new Date(order.date).toISOString().split('T')[0];
+                return orderDate === filterDate;
+            });
+            
+            displayOrders(filtered);
+        }
+        
+        function clearDateFilter() {
+            document.getElementById('date-filter').value = '';
+            displayOrders(allOrders);
+        }
+        
+        function closeOrdersModal() {
+            document.getElementById('orders-modal').style.display = 'none';
         }
 
         function exportData() {
@@ -148,6 +240,14 @@
 
         async function triggerStockSync() {
             await syncStock();
+        }
+
+        function openProductForm() {
+            if (CONFIG.GOOGLE_FORMS.PRODUCT_CREATION_FORM_ID === 'YOUR_PRODUCT_CREATION_FORM_ID') {
+                alert('Please update PRODUCT_CREATION_FORM_ID in config.js with your actual Google Form ID');
+                return;
+            }
+            window.open(`https://docs.google.com/forms/d/${CONFIG.GOOGLE_FORMS.PRODUCT_CREATION_FORM_ID}/viewform`, '_blank');
         }
 
         // Initialize admin panel

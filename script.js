@@ -18,44 +18,35 @@ const closeModal = document.querySelector('.close');
 const cartButton = document.querySelector('.cart');
 const loading = document.getElementById('loading');
 
-// Real-time stock updates
-async function updateStockDisplay() {
+// Real-time product updates
+async function updateProducts() {
     try {
         const response = await fetch(`https://api.airtable.com/v0/${CONFIG.AIRTABLE.BASE_ID}/${CONFIG.AIRTABLE.PRODUCTS_TABLE}`, {
             headers: { 'Authorization': `Bearer ${CONFIG.AIRTABLE.API_KEY}` }
         });
         
         const data = await response.json();
+        const newProducts = data.records.map(record => ({
+            id: record.fields['Product ID'],
+            name: record.fields['Product Name'],
+            price: record.fields['Selling Price'],
+            stock: record.fields['Current Stock'] || 0,
+            category: record.fields['Category'],
+            image: record.fields['Images']?.[0]?.url || 'https://via.placeholder.com/200x200?text=' + encodeURIComponent(record.fields['Product Name']),
+            hoverImage: record.fields['Images']?.[1]?.url,
+            description: record.fields['Description'] || ''
+        }));
         
-        data.records.forEach(record => {
-            const productId = record.fields['Product ID'];
-            const newStock = record.fields['Current Stock'] || 0;
-            
-            // Update product in memory
-            const product = products.find(p => p.id === productId);
-            if (product && product.stock !== newStock) {
-                product.stock = newStock;
-                
-                // Update UI elements
-                const productCard = document.querySelector(`[data-product-id="${productId}"]`);
-                if (productCard) {
-                    const stockElement = productCard.querySelector('.stock');
-                    const buttonElement = productCard.querySelector('.add-to-cart');
-                    
-                    stockElement.textContent = `Stock: ${newStock}`;
-                    
-                    if (newStock === 0) {
-                        buttonElement.disabled = true;
-                        buttonElement.textContent = 'Out of Stock';
-                    } else {
-                        buttonElement.disabled = false;
-                        buttonElement.textContent = 'Add to Cart';
-                    }
-                }
-            }
-        });
+        // Check if products changed
+        const productsChanged = JSON.stringify(products) !== JSON.stringify(newProducts);
+        
+        if (productsChanged) {
+            products = newProducts;
+            displayProducts(products);
+            console.log('Products updated from Airtable');
+        }
     } catch (error) {
-        console.error('Real-time stock update failed:', error);
+        console.error('Real-time product update failed:', error);
     }
 }
 
@@ -66,8 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Start real-time updates after initial load
     setTimeout(() => {
-        setInterval(updateStockDisplay, 30000); // Every 30 seconds
-        console.log('Real-time stock updates started');
+        setInterval(updateProducts, 30000); // Every 30 seconds
+        console.log('Real-time product updates started');
     }, 5000);
 });
 

@@ -6,6 +6,7 @@ const CONFIG = {
         API_KEY: 'patU6popFbTUeRffY.5be688e9a4cdff9af1ff208cecafa3479f485d24e6971fa2b1dd6a970b31f192',
         PRODUCTS_TABLE: 'Products',
         STOCK_MOVEMENTS_TABLE: 'Stock Movements',
+        ORDERS_TABLE: 'Orders',
         PRODUCT_FIELDS: {
             PRODUCT_ID: 'Product ID',
             NAME: 'Name',
@@ -28,6 +29,7 @@ const CONFIG = {
     
     // Google Forms Configuration
     GOOGLE_FORMS: {
+        PRODUCT_CREATION_FORM_ID: '1UHWVRtRfqLKsOmfaAbtDBFxWl3DPHi1_iHcRiHTu7Rc',
         STOCK_MANAGEMENT_FORM_ID: '1E8GfVYXTA5bECAy8FLXHUa9QdnNXKKpMQ-4Nwo9R4wU'
     },
     
